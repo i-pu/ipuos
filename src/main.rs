@@ -1,42 +1,45 @@
 #![no_std] // don't link the Rust standard library
+#![feature(abi_x86_interrupt)]
 #![no_main] // disable all Rust-level entry points
-#![feature(alloc)]
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
+mod interrupts;
+mod vga_buffer;
 
-use core::panic::PanicInfo;
-
-// use alloc::vec::Vec;
-
-pub mod allocator;
-
-/// This function is called on panic.
-#[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {}
-}
+use interrupts::*;
+use vga_buffer::*;
 
 static HELLO: &[u8] = b"Hello World!";
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    print_vga(HELLO);
-    let a = b"aaa";
-    print_vga(a);
+    init_idt();
 
-    // let v = Vec::from([1, 2, 3, 4, 5]);
+    use x86_64::registers::control::Cr3;
 
-    let a: [u8; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    let (level_4_page_table, _) = Cr3::read();
+    println!(
+        "Level 4 page table at: {:?}",
+        level_4_page_table.start_address()
+    );
+
+    let ptr = 0xdeadbeaf as *mut u32;
+    unsafe {
+        *ptr = 42;
+    }
+
+    debug!("Hello, world!");
+    panic!("Some panic message");
+
+    #[cfg(test)]
+    test_main();
+
     loop {}
 }
 
-fn print_vga(s: &[u8]) {
-    let vga_buffer = 0xb8000 as *mut u8;
-    for (i, &byte) in s.iter().enumerate() {
-        unsafe {
-            *vga_buffer.offset(i as isize * 2) = byte;
-            *vga_buffer.offset(i as isize * 2 + 1) = 0xb;
-        }
-    }
+use core::panic::PanicInfo;
+/// This function is called on panic.
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    error!("{}", info);
+    loop {}
 }
