@@ -1,20 +1,25 @@
 #![no_std] // don't link the Rust standard library
-#![feature(abi_x86_interrupt)]
+#![feature(abi_x86_interrupt)] // x86_interrupt規約で定義された関数を使用する
 #![no_main] // disable all Rust-level entry points
 
+use x86_64::registers::control::Cr3;
+
+mod gdt;
 mod interrupts;
 mod vga_buffer;
 
-use interrupts::*;
-use vga_buffer::*;
-
-static HELLO: &[u8] = b"Hello World!";
+fn init() {
+    gdt::init();
+    interrupts::init_idt();
+}
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    init_idt();
-
-    use x86_64::registers::control::Cr3;
+    init();
+    debug!("{:?}", _start as *const u8);
+    unsafe {
+        asm!("int3", options(nomem, nostack));
+    }
 
     let (level_4_page_table, _) = Cr3::read();
     println!(
@@ -22,21 +27,27 @@ pub extern "C" fn _start() -> ! {
         level_4_page_table.start_address()
     );
 
-    let ptr = 0xdeadbeaf as *mut u32;
-    unsafe {
-        *ptr = 42;
+    fn stack_overflow() {
+        stack_overflow(); // 再帰呼び出しのために、リターンアドレスがプッシュされる
     }
+    stack_overflow();
+
+    // // ページフォルトを起こす
+    // unsafe {
+    //     *(0xdeadbeef as *mut u64) = 42;
+    // };
 
     debug!("Hello, world!");
-    panic!("Some panic message");
 
-    #[cfg(test)]
-    test_main();
+    // x86_64::instructions::interrupts::int3();
+
+    panic!("Some panic message");
+    // assert_eq!(1, 2);
 
     loop {}
 }
 
-use core::panic::PanicInfo;
+use core::{arch::asm, panic::PanicInfo};
 /// This function is called on panic.
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
