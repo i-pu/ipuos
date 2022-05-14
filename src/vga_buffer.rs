@@ -54,7 +54,7 @@ lazy_static! {
         color_code: ColorCode::new(Color::Yellow, Color::Black),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
     });
-    
+
     /// debug!
     pub static ref DEBUG_WRITER: Mutex<Writer> = Mutex::new(Writer {
         column_position: 0,
@@ -141,13 +141,6 @@ impl Writer {
             }
         }
     }
-}
-
-pub fn print_something() {
-    crate::println!("H");
-    crate::println!("ello ");
-    crate::println!("Wörld!");
-    crate::println!("こんにちは世界!");
 }
 
 #[macro_export]
